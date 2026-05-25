@@ -1,34 +1,39 @@
 {% extends 'base.html' %}
-{% block title %} – Detalii pacient{% endblock %}
+{% block title %} – {{ patient.name }}{% endblock %}
 {% block content %}
+
+{% set day_names = ['Lun', 'Mar', 'Mie', 'Joi', 'Vin', 'Sam', 'Dum'] %}
 
 <a href="{{ url_for('doctor_patients') }}" class="btn btn-outline-secondary btn-sm mb-4">
     <i class="bi bi-arrow-left me-1"></i>Înapoi la pacienți
 </a>
 
-<!-- Patient Header -->
+<!-- Header -->
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body">
-        <div class="d-flex align-items-center">
-            <div class="avatar-circle avatar-lg me-3">
-                {{ patient.name[0].upper() }}
+        <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center">
+                <div class="avatar-circle avatar-lg me-3">{{ patient.name[0].upper() }}</div>
+                <div>
+                    <h2 class="mb-0 fw-bold">{{ patient.name }}</h2>
+                    <p class="text-muted mb-0"><i class="bi bi-envelope me-1"></i>{{ patient.email }}</p>
+                </div>
             </div>
-            <div>
-                <h2 class="mb-0 fw-bold">{{ patient.name }}</h2>
-                <p class="text-muted mb-0"><i class="bi bi-envelope me-1"></i>{{ patient.email }}</p>
-            </div>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#prescribeModal">
+                <i class="bi bi-plus-lg me-1"></i>Prescrie medicament
+            </button>
         </div>
     </div>
 </div>
 
-<!-- Adherence Stats -->
-{% if stats and stats.total > 0 %}
-<h4 class="fw-bold mb-3"><i class="bi bi-bar-chart me-2"></i>Statistici aderență</h4>
-<div class="row g-3 mb-4">
+<!-- Stats -->
+{% if stats and stats.total and stats.total > 0 %}
+<h4 class="fw-bold mb-3"><i class="bi bi-bar-chart me-2"></i>Aderență tratament</h4>
+<div class="row g-3 mb-3">
     <div class="col-4">
         <div class="stat-card text-center py-3 rounded-3 bg-light">
             <div class="fs-3 fw-bold">{{ stats.total }}</div>
-            <small class="text-muted">Total confirmate</small>
+            <small class="text-muted">Confirmate</small>
         </div>
     </div>
     <div class="col-4">
@@ -44,47 +49,60 @@
         </div>
     </div>
 </div>
+{% set pct = ((stats.taken or 0) / stats.total * 100) | round(1) %}
 <div class="mb-4">
     <div class="d-flex justify-content-between small text-muted mb-1">
         <span>Aderență globală</span>
-        <span class="fw-medium">{{ ((stats.taken or 0) / stats.total * 100) | round(1) }}%</span>
+        <span class="fw-medium {% if pct >= 80 %}text-success{% elif pct >= 50 %}text-warning{% else %}text-danger{% endif %}">{{ pct }}%</span>
     </div>
-    <div class="progress" style="height: 10px;">
-        {% set pct = ((stats.taken or 0) / stats.total * 100) | round(1) %}
+    <div class="progress mb-4" style="height:10px">
         <div class="progress-bar {% if pct >= 80 %}bg-success{% elif pct >= 50 %}bg-warning{% else %}bg-danger{% endif %}"
-             role="progressbar" style="width: {{ pct }}%"></div>
+             style="width:{{ pct }}%"></div>
     </div>
 </div>
 {% endif %}
 
 <!-- Medications -->
-<h4 class="fw-bold mb-3"><i class="bi bi-capsule me-2"></i>Medicamente active</h4>
+<h4 class="fw-bold mb-3"><i class="bi bi-capsule me-2"></i>Medicamente prescrise</h4>
 {% if medications %}
-<div class="row g-2 mb-4">
-    {% set day_names = ['Lun', 'Mar', 'Mie', 'Joi', 'Vin', 'Sâm', 'Dum'] %}
+<div class="row g-3 mb-4">
     {% for med in medications %}
     <div class="col-md-4">
-        <div class="card border-0 bg-light">
-            <div class="card-body py-2 px-3">
-                <strong>{{ med.name }}</strong>
-                {% if med.dosage %}<span class="badge bg-white text-dark border ms-2">{{ med.dosage }}</span>{% endif %}
-                {% if med.instructions %}<br><small class="text-muted">{{ med.instructions }}</small>{% endif %}
-                {% if med.times %}
-                <div class="mt-1">
-                    {% for t in med.times.split(',') %}
-                        <span class="badge bg-primary bg-opacity-10 text-primary me-1">{{ t.strip() }}</span>
-                    {% endfor %}
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <h6 class="mb-0">{{ med.name }}</h6>
+                        {% if med.dosage %}<span class="badge bg-light text-dark border mt-1">{{ med.dosage }}</span>{% endif %}
+                    </div>
+                    <form method="POST" action="{{ url_for('doctor_delete_medication', patient_id=patient.id, med_id=med.id) }}"
+                          onsubmit="return confirm('Elimini {{ med.name }} din tratament?')">
+                        <button class="btn btn-sm btn-outline-danger" title="Elimină">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
                 </div>
-                {% if med.days_of_week %}
-                <div class="d-flex gap-1 mt-1">
-                    {% set active_days = med.days_of_week.split(',') %}
-                    {% for i in range(7) %}
-                        <span class="day-pill {% if i|string in active_days %}active{% endif %}" style="font-size:0.65rem">
-                            {{ day_names[i] }}
+                {% if med.instructions %}<p class="text-muted small mb-2">{{ med.instructions }}</p>{% endif %}
+                {% if med.times %}
+                <div class="d-flex flex-wrap gap-1 mb-2">
+                    {% for t in med.times.split(',') %}
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                            <i class="bi bi-clock me-1"></i>{{ t.strip() }}
                         </span>
                     {% endfor %}
                 </div>
+                {% if med.days_of_week %}
+                <div class="d-flex gap-1 flex-wrap">
+                    {% set active_days = med.days_of_week.split(',') %}
+                    {% for i in range(7) %}
+                        <span class="day-pill {% if i|string in active_days %}active{% endif %}">{{ day_names[i] }}</span>
+                    {% endfor %}
+                </div>
                 {% endif %}
+                <small class="text-muted d-block mt-2">
+                    <i class="bi bi-calendar3 me-1"></i>{{ med.start_date }}
+                    {% if med.end_date %} → {{ med.end_date }}{% else %} → continuu{% endif %}
+                </small>
                 {% endif %}
             </div>
         </div>
@@ -92,23 +110,20 @@
     {% endfor %}
 </div>
 {% else %}
-<p class="text-muted mb-4">Pacientul nu are medicamente înregistrate.</p>
+<div class="text-center py-4 bg-white rounded-3 shadow-sm mb-4">
+    <i class="bi bi-capsule text-muted" style="font-size:2.5rem"></i>
+    <p class="mt-2 mb-0 text-muted">Niciun medicament prescris încă.</p>
+</div>
 {% endif %}
 
-<!-- History Table -->
+<!-- History -->
 <h4 class="fw-bold mb-3"><i class="bi bi-clock-history me-2"></i>Istoric doze</h4>
 {% if history %}
 <div class="card border-0 shadow-sm">
     <div class="table-responsive">
         <table class="table table-hover mb-0 align-middle">
             <thead class="table-light">
-                <tr>
-                    <th>Dată</th>
-                    <th>Oră</th>
-                    <th>Medicament</th>
-                    <th>Dozaj</th>
-                    <th>Status</th>
-                </tr>
+                <tr><th>Dată</th><th>Oră</th><th>Medicament</th><th>Dozaj</th><th>Status</th></tr>
             </thead>
             <tbody>
                 {% for dose in history %}
@@ -131,9 +146,72 @@
     </div>
 </div>
 {% else %}
-<div class="text-center py-4 text-muted">
-    <i class="bi bi-clock-history" style="font-size: 2rem;"></i>
-    <p class="mt-2">Pacientul nu a confirmat nicio doză încă.</p>
+<div class="text-center py-4 bg-white rounded-3 shadow-sm">
+    <i class="bi bi-clock-history text-muted" style="font-size:2rem"></i>
+    <p class="mt-2 text-muted">Pacientul nu a confirmat nicio doză din medicamentele tale prescrise.</p>
 </div>
 {% endif %}
+
+<!-- Prescribe Modal -->
+<div class="modal fade" id="prescribeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold">
+                    <i class="bi bi-plus-circle me-2"></i>Prescrie medicament pentru {{ patient.name }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('doctor_prescribe', patient_id=patient.id) }}">
+                <div class="modal-body px-4">
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label fw-medium">Nume medicament *</label>
+                            <input type="text" name="name" class="form-control" required placeholder="ex: Metformin">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-medium">Dozaj</label>
+                            <input type="text" name="dosage" class="form-control" placeholder="ex: 500mg">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-medium">Instrucțiuni</label>
+                            <input type="text" name="instructions" class="form-control" placeholder="ex: după masă">
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label fw-medium">Zile de administrare *</label>
+                        <div class="d-flex gap-3 flex-wrap">
+                            {% for i in range(7) %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="days" value="{{ i }}" id="d{{ i }}">
+                                <label class="form-check-label" for="d{{ i }}">{{ day_names[i] }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label fw-medium">Ore de administrare * <small class="text-muted fw-normal">(separate prin virgulă, ex: 08:00, 14:00)</small></label>
+                        <input type="text" name="times" class="form-control" placeholder="08:00, 20:00" required>
+                    </div>
+                    <div class="row mt-3 g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-medium">Data start *</label>
+                            <input type="date" name="start_date" class="form-control" value="{{ today }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-medium">Data final <small class="text-muted fw-normal">(opțional)</small></label>
+                            <input type="date" name="end_date" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Anulează</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-send me-1"></i>Prescrie medicament
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}

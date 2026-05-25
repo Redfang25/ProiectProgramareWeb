@@ -2,7 +2,12 @@
 {% block title %} – Pacienții mei{% endblock %}
 {% block content %}
 
-<h2 class="fw-bold mb-4"><i class="bi bi-people text-primary me-2"></i>Pacienții mei</h2>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold mb-0"><i class="bi bi-people text-primary me-2"></i>Pacienții mei</h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPatientModal">
+        <i class="bi bi-person-plus me-1"></i>Adaugă pacient
+    </button>
+</div>
 
 {% if patients %}
 <div class="row g-3">
@@ -11,17 +16,34 @@
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body">
                 <div class="d-flex align-items-center mb-3">
-                    <div class="avatar-circle me-3">
-                        {{ p.name[0].upper() }}
-                    </div>
+                    <div class="avatar-circle me-3">{{ p.name[0].upper() }}</div>
                     <div>
-                        <h5 class="mb-0">{{ p.name }}</h5>
+                        <h6 class="mb-0">{{ p.name }}</h6>
                         <small class="text-muted">{{ p.email }}</small>
                     </div>
                 </div>
-                <a href="{{ url_for('doctor_patient_detail', patient_id=p.id) }}" class="btn btn-primary btn-sm w-100">
-                    <i class="bi bi-eye me-1"></i>Vezi tratament și istoric
-                </a>
+                <div class="d-flex gap-2 mb-3">
+                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                        <i class="bi bi-capsule me-1"></i>{{ p.med_count }} medicamente
+                    </span>
+                    {% if p.today_pending and p.today_pending > 0 %}
+                    <span class="badge bg-warning text-dark">
+                        <i class="bi bi-clock me-1"></i>{{ p.today_pending }} azi în așteptare
+                    </span>
+                    {% endif %}
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('doctor_patient_detail', patient_id=p.id) }}"
+                       class="btn btn-primary btn-sm flex-fill">
+                        <i class="bi bi-eye me-1"></i>Detalii & Prescripții
+                    </a>
+                    <form method="POST" action="{{ url_for('doctor_remove_patient', patient_id=p.id) }}"
+                          onsubmit="return confirm('Elimini pacientul {{ p.name }}?')">
+                        <button class="btn btn-outline-danger btn-sm">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
@@ -30,12 +52,47 @@
 {% else %}
 <div class="empty-state text-center py-5">
     <i class="bi bi-people text-muted" style="font-size: 3.5rem;"></i>
-    <h4 class="mt-3">Niciun pacient conectat</h4>
-    <p class="text-muted">Pacienții vă pot trimite invitații din secțiunea <strong>Medicii mei</strong>
-       folosind adresa voastră de email.</p>
-    <a href="{{ url_for('doctor_dashboard') }}" class="btn btn-outline-primary mt-2">
-        <i class="bi bi-bell me-1"></i>Verifică invitații
-    </a>
+    <h4 class="mt-3">Niciun pacient adăugat</h4>
+    <p class="text-muted">Adaugă un pacient folosind adresa lui de email înregistrată în MedTrack.</p>
+    <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#addPatientModal">
+        <i class="bi bi-person-plus me-1"></i>Adaugă primul pacient
+    </button>
 </div>
 {% endif %}
+
+<!-- Add Patient Modal -->
+<div class="modal fade" id="addPatientModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold"><i class="bi bi-person-plus me-2"></i>Adaugă pacient</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('doctor_add_patient') }}">
+                <div class="modal-body px-4">
+                    <p class="text-muted small mb-3">
+                        Pacientul trebuie să aibă deja un cont de tip <strong>Pacient</strong> în MedTrack.
+                        Introdu adresa lui de email.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Email pacient</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0">
+                                <i class="bi bi-envelope text-muted"></i>
+                            </span>
+                            <input type="email" name="email" class="form-control border-start-0"
+                                   required placeholder="pacient@exemplu.com" autofocus>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Anulează</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-person-plus me-1"></i>Adaugă pacient
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}

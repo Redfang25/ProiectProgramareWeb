@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
-import sqlite3
+import sqlite3, hashlib
 from datetime import datetime, date, timedelta
 from functools import wraps
 
@@ -28,9 +28,12 @@ def init_db():
         CREATE TABLE IF NOT EXISTS medications (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             patient_id INTEGER NOT NULL,
+            prescribed_by INTEGER,
             name TEXT NOT NULL,
             dosage TEXT,
-            instructions TEXT
+            instructions TEXT,
+            dispensed INTEGER DEFAULT 0,
+            dispensed_at TEXT
         );
         CREATE TABLE IF NOT EXISTS schedules (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,15 +58,17 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             doctor_id INTEGER NOT NULL,
             patient_id INTEGER NOT NULL,
-            status TEXT DEFAULT 'pending',
             UNIQUE(doctor_id, patient_id)
         );
     ''')
     db.commit()
     db.close()
 
+
+def pharmacy_token(user_id):
+    return hashlib.sha256(f'medtrack-pharmacy-{user_id}-secret2026'.encode()).hexdigest()[:20]
+
 def generate_doses(db, schedule_id, medication_id, patient_id, days_str, times_str, start_str, end_str):
-    """Generate dose records for a schedule. Only deletes pending doses."""
     db.execute("DELETE FROM doses WHERE schedule_id=? AND status='pending'", (schedule_id,))
     start = datetime.strptime(start_str, '%Y-%m-%d').date()
     end = datetime.strptime(end_str, '%Y-%m-%d').date() if end_str else start + timedelta(days=90)
@@ -74,7 +79,7 @@ def generate_doses(db, schedule_id, medication_id, patient_id, days_str, times_s
         if current.weekday() in days:
             for t in times:
                 db.execute(
-                    'INSERT INTO doses (schedule_id, patient_id, medication_id, dose_date, dose_time, status) VALUES (?,?,?,?,?,?)',
+                    'INSERT INTO doses (schedule_id,patient_id,medication_id,dose_date,dose_time,status) VALUES (?,?,?,?,?,?)',
                     (schedule_id, patient_id, medication_id, current.isoformat(), t, 'pending')
                 )
         current += timedelta(days=1)
@@ -99,7 +104,7 @@ def login_required(role=None):
 @app.route('/')
 def index():
     if 'user_id' in session:
-        return redirect(url_for('patient_today') if session['role'] == 'patient' else url_for('doctor_dashboard'))
+        return redirect(url_for('patient_today') if session['role'] == 'patient' else url_for('doctor_patients'))
     return redirect(url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -139,7 +144,7 @@ def login():
         session['user_id'] = user['id']
         session['name'] = user['name']
         session['role'] = user['role']
-        return redirect(url_for('patient_today') if user['role'] == 'patient' else url_for('doctor_dashboard'))
+        return redirect(url_for('patient_today') if user['role'] == 'patient' else url_for('doctor_patients'))
     return render_template('login.html')
 
 @app.route('/logout')
@@ -155,8 +160,11 @@ def patient_today():
     db = get_db()
     today_str = date.today().isoformat()
     doses = db.execute('''
-        SELECT d.id, d.dose_time, d.status, m.name as med_name, m.dosage, m.instructions
-        FROM doses d JOIN medications m ON d.medication_id=m.id
+        SELECT d.id, d.dose_time, d.status, m.name as med_name, m.dosage, m.instructions,
+               u.name as doctor_name
+        FROM doses d
+        JOIN medications m ON d.medication_id = m.id
+        LEFT JOIN users u ON m.prescribed_by = u.id
         WHERE d.patient_id=? AND d.dose_date=?
         ORDER BY d.dose_time
     ''', (session['user_id'], today_str)).fetchall()
@@ -183,88 +191,18 @@ def patient_medications():
     db = get_db()
     meds = db.execute('''
         SELECT m.id, m.name, m.dosage, m.instructions,
+               u.name as doctor_name,
                s.id as schedule_id, s.days_of_week, s.times, s.start_date, s.end_date
         FROM medications m
-        LEFT JOIN schedules s ON s.medication_id=m.id
+        LEFT JOIN users u ON m.prescribed_by = u.id
+        LEFT JOIN schedules s ON s.medication_id = m.id
         WHERE m.patient_id=?
         GROUP BY m.id
+        ORDER BY m.id DESC
     ''', (session['user_id'],)).fetchall()
     db.close()
     return render_template('patient/medications.html', medications=meds,
                            today=date.today().isoformat())
-
-@app.route('/patient/medications/add', methods=['POST'])
-@login_required(role='patient')
-def add_medication():
-    name = request.form['name'].strip()
-    dosage = request.form.get('dosage', '').strip()
-    instructions = request.form.get('instructions', '').strip()
-    days = request.form.getlist('days')
-    times = request.form.get('times', '').strip()
-    start_date = request.form.get('start_date') or date.today().isoformat()
-    end_date = request.form.get('end_date', '').strip() or None
-    if not name or not days or not times:
-        flash('Completați câmpurile obligatorii (Nume, Zile, Ore).', 'danger')
-        return redirect(url_for('patient_medications'))
-    days_str = ','.join(days)
-    db = get_db()
-    cur = db.execute('INSERT INTO medications (patient_id,name,dosage,instructions) VALUES (?,?,?,?)',
-                     (session['user_id'], name, dosage, instructions))
-    med_id = cur.lastrowid
-    cur2 = db.execute('INSERT INTO schedules (medication_id,patient_id,days_of_week,times,start_date,end_date) VALUES (?,?,?,?,?,?)',
-                      (med_id, session['user_id'], days_str, times, start_date, end_date))
-    db.commit()
-    generate_doses(db, cur2.lastrowid, med_id, session['user_id'], days_str, times, start_date, end_date)
-    db.commit()
-    db.close()
-    flash(f'Medicamentul "{name}" a fost adăugat.', 'success')
-    return redirect(url_for('patient_medications'))
-
-@app.route('/patient/medications/<int:med_id>/edit', methods=['POST'])
-@login_required(role='patient')
-def edit_medication(med_id):
-    name = request.form['name'].strip()
-    dosage = request.form.get('dosage', '').strip()
-    instructions = request.form.get('instructions', '').strip()
-    days = request.form.getlist('days')
-    times = request.form.get('times', '').strip()
-    start_date = request.form.get('start_date') or date.today().isoformat()
-    end_date = request.form.get('end_date', '').strip() or None
-    if not name or not days or not times:
-        flash('Completați câmpurile obligatorii.', 'danger')
-        return redirect(url_for('patient_medications'))
-    days_str = ','.join(days)
-    db = get_db()
-    db.execute('UPDATE medications SET name=?,dosage=?,instructions=? WHERE id=? AND patient_id=?',
-               (name, dosage, instructions, med_id, session['user_id']))
-    sched = db.execute('SELECT id FROM schedules WHERE medication_id=? AND patient_id=?',
-                       (med_id, session['user_id'])).fetchone()
-    if sched:
-        db.execute('UPDATE schedules SET days_of_week=?,times=?,start_date=?,end_date=? WHERE id=?',
-                   (days_str, times, start_date, end_date, sched['id']))
-        db.commit()
-        generate_doses(db, sched['id'], med_id, session['user_id'], days_str, times, start_date, end_date)
-    else:
-        cur = db.execute('INSERT INTO schedules (medication_id,patient_id,days_of_week,times,start_date,end_date) VALUES (?,?,?,?,?,?)',
-                         (med_id, session['user_id'], days_str, times, start_date, end_date))
-        db.commit()
-        generate_doses(db, cur.lastrowid, med_id, session['user_id'], days_str, times, start_date, end_date)
-    db.commit()
-    db.close()
-    flash('Medicament actualizat cu succes.', 'success')
-    return redirect(url_for('patient_medications'))
-
-@app.route('/patient/medications/<int:med_id>/delete', methods=['POST'])
-@login_required(role='patient')
-def delete_medication(med_id):
-    db = get_db()
-    db.execute('DELETE FROM doses WHERE medication_id=? AND patient_id=?', (med_id, session['user_id']))
-    db.execute('DELETE FROM schedules WHERE medication_id=? AND patient_id=?', (med_id, session['user_id']))
-    db.execute('DELETE FROM medications WHERE id=? AND patient_id=?', (med_id, session['user_id']))
-    db.commit()
-    db.close()
-    flash('Medicament șters.', 'success')
-    return redirect(url_for('patient_medications'))
 
 @app.route('/patient/history')
 @login_required(role='patient')
@@ -290,126 +228,240 @@ def patient_history():
 def patient_doctors():
     db = get_db()
     doctors = db.execute('''
-        SELECT u.id, u.name, u.email, dp.status, dp.id as dp_id
+        SELECT u.name, u.email
         FROM doctor_patient dp JOIN users u ON dp.doctor_id=u.id
         WHERE dp.patient_id=?
     ''', (session['user_id'],)).fetchall()
     db.close()
     return render_template('patient/doctors.html', doctors=doctors)
 
-@app.route('/patient/doctors/add', methods=['POST'])
-@login_required(role='patient')
-def add_doctor():
-    email = request.form['email'].strip().lower()
-    db = get_db()
-    doctor = db.execute("SELECT id FROM users WHERE email=? AND role='doctor'", (email,)).fetchone()
-    if not doctor:
-        flash('Nu există niciun medic înregistrat cu acest email.', 'danger')
-        db.close()
-        return redirect(url_for('patient_doctors'))
-    existing = db.execute('SELECT id FROM doctor_patient WHERE doctor_id=? AND patient_id=?',
-                          (doctor['id'], session['user_id'])).fetchone()
-    if existing:
-        flash('Medicul este deja în lista ta.', 'warning')
-        db.close()
-        return redirect(url_for('patient_doctors'))
-    db.execute("INSERT INTO doctor_patient (doctor_id,patient_id,status) VALUES (?,?,'pending')",
-               (doctor['id'], session['user_id']))
-    db.commit()
-    db.close()
-    flash('Invitație trimisă medicului.', 'success')
-    return redirect(url_for('patient_doctors'))
-
-@app.route('/patient/doctors/<int:dp_id>/remove', methods=['POST'])
-@login_required(role='patient')
-def remove_doctor(dp_id):
-    db = get_db()
-    db.execute('DELETE FROM doctor_patient WHERE id=? AND patient_id=?', (dp_id, session['user_id']))
-    db.commit()
-    db.close()
-    flash('Accesul medicului a fost revocat.', 'success')
-    return redirect(url_for('patient_doctors'))
-
 # ──────────────────────────── DOCTOR ROUTES ────────────────────────────
-
-@app.route('/doctor/dashboard')
-@login_required(role='doctor')
-def doctor_dashboard():
-    db = get_db()
-    pending = db.execute('''
-        SELECT dp.id, u.name, u.email
-        FROM doctor_patient dp JOIN users u ON dp.patient_id=u.id
-        WHERE dp.doctor_id=? AND dp.status='pending'
-    ''', (session['user_id'],)).fetchall()
-    db.close()
-    return render_template('doctor/dashboard.html', pending=pending)
-
-@app.route('/doctor/invitations/<int:dp_id>/accept', methods=['POST'])
-@login_required(role='doctor')
-def accept_invitation(dp_id):
-    db = get_db()
-    db.execute("UPDATE doctor_patient SET status='accepted' WHERE id=? AND doctor_id=?",
-               (dp_id, session['user_id']))
-    db.commit()
-    db.close()
-    flash('Invitație acceptată.', 'success')
-    return redirect(url_for('doctor_dashboard'))
-
-@app.route('/doctor/invitations/<int:dp_id>/reject', methods=['POST'])
-@login_required(role='doctor')
-def reject_invitation(dp_id):
-    db = get_db()
-    db.execute('DELETE FROM doctor_patient WHERE id=? AND doctor_id=?', (dp_id, session['user_id']))
-    db.commit()
-    db.close()
-    flash('Invitație respinsă.', 'info')
-    return redirect(url_for('doctor_dashboard'))
 
 @app.route('/doctor/patients')
 @login_required(role='doctor')
 def doctor_patients():
     db = get_db()
     patients = db.execute('''
-        SELECT u.id, u.name, u.email, dp.id as dp_id
-        FROM doctor_patient dp JOIN users u ON dp.patient_id=u.id
-        WHERE dp.doctor_id=? AND dp.status='accepted'
-    ''', (session['user_id'],)).fetchall()
+        SELECT u.id, u.name, u.email,
+               COUNT(DISTINCT m.id) as med_count,
+               SUM(CASE WHEN d.status='pending' AND d.dose_date=? THEN 1 ELSE 0 END) as today_pending
+        FROM doctor_patient dp
+        JOIN users u ON dp.patient_id = u.id
+        LEFT JOIN medications m ON m.patient_id = u.id AND m.prescribed_by = ?
+        LEFT JOIN doses d ON d.patient_id = u.id AND d.dose_date = ?
+        WHERE dp.doctor_id=?
+        GROUP BY u.id
+    ''', (date.today().isoformat(), session['user_id'], date.today().isoformat(), session['user_id'])).fetchall()
     db.close()
     return render_template('doctor/patients.html', patients=patients)
+
+@app.route('/doctor/patients/add', methods=['POST'])
+@login_required(role='doctor')
+def doctor_add_patient():
+    email = request.form['email'].strip().lower()
+    db = get_db()
+    patient = db.execute("SELECT id FROM users WHERE email=? AND role='patient'", (email,)).fetchone()
+    if not patient:
+        flash('Nu există niciun pacient înregistrat cu acest email.', 'danger')
+        db.close()
+        return redirect(url_for('doctor_patients'))
+    if db.execute('SELECT id FROM doctor_patient WHERE doctor_id=? AND patient_id=?',
+                  (session['user_id'], patient['id'])).fetchone():
+        flash('Pacientul este deja în lista ta.', 'warning')
+        db.close()
+        return redirect(url_for('doctor_patients'))
+    db.execute('INSERT INTO doctor_patient (doctor_id, patient_id) VALUES (?,?)',
+               (session['user_id'], patient['id']))
+    db.commit()
+    db.close()
+    flash(f'Pacientul a fost adăugat cu succes.', 'success')
+    return redirect(url_for('doctor_patients'))
+
+@app.route('/doctor/patients/<int:patient_id>/remove', methods=['POST'])
+@login_required(role='doctor')
+def doctor_remove_patient(patient_id):
+    db = get_db()
+    db.execute('DELETE FROM doctor_patient WHERE doctor_id=? AND patient_id=?',
+               (session['user_id'], patient_id))
+    db.commit()
+    db.close()
+    flash('Pacientul a fost eliminat.', 'info')
+    return redirect(url_for('doctor_patients'))
 
 @app.route('/doctor/patients/<int:patient_id>')
 @login_required(role='doctor')
 def doctor_patient_detail(patient_id):
     db = get_db()
-    if not db.execute("SELECT id FROM doctor_patient WHERE doctor_id=? AND patient_id=? AND status='accepted'",
+    if not db.execute('SELECT id FROM doctor_patient WHERE doctor_id=? AND patient_id=?',
                       (session['user_id'], patient_id)).fetchone():
         flash('Nu aveți acces la acest pacient.', 'danger')
         return redirect(url_for('doctor_patients'))
     patient = db.execute('SELECT id, name, email FROM users WHERE id=?', (patient_id,)).fetchone()
     medications = db.execute('''
-        SELECT m.name, m.dosage, m.instructions, s.days_of_week, s.times, s.start_date, s.end_date
-        FROM medications m LEFT JOIN schedules s ON s.medication_id=m.id
-        WHERE m.patient_id=? GROUP BY m.id
-    ''', (patient_id,)).fetchall()
+        SELECT m.id, m.name, m.dosage, m.instructions,
+               s.id as schedule_id, s.days_of_week, s.times, s.start_date, s.end_date
+        FROM medications m
+        LEFT JOIN schedules s ON s.medication_id = m.id
+        WHERE m.patient_id=? AND m.prescribed_by=?
+        GROUP BY m.id
+        ORDER BY m.id DESC
+    ''', (patient_id, session['user_id'])).fetchall()
     history = db.execute('''
         SELECT d.dose_date, d.dose_time, d.status, m.name as med_name, m.dosage
         FROM doses d JOIN medications m ON d.medication_id=m.id
-        WHERE d.patient_id=? AND d.status!='pending'
+        WHERE d.patient_id=? AND d.status!='pending' AND m.prescribed_by=?
         ORDER BY d.dose_date DESC, d.dose_time DESC LIMIT 100
-    ''', (patient_id,)).fetchall()
+    ''', (patient_id, session['user_id'])).fetchall()
     stats = db.execute('''
         SELECT COUNT(*) as total,
-               SUM(CASE WHEN status='taken' THEN 1 ELSE 0 END) as taken,
-               SUM(CASE WHEN status='missed' THEN 1 ELSE 0 END) as missed
-        FROM doses WHERE patient_id=? AND status!='pending'
-    ''', (patient_id,)).fetchone()
+               SUM(CASE WHEN d.status='taken' THEN 1 ELSE 0 END) as taken,
+               SUM(CASE WHEN d.status='missed' THEN 1 ELSE 0 END) as missed
+        FROM doses d JOIN medications m ON d.medication_id=m.id
+        WHERE d.patient_id=? AND d.status!='pending' AND m.prescribed_by=?
+    ''', (patient_id, session['user_id'])).fetchone()
     db.close()
     return render_template('doctor/patient_detail.html',
                            patient=patient, medications=medications,
-                           history=history, stats=stats)
+                           history=history, stats=stats,
+                           today=date.today().isoformat())
+
+@app.route('/doctor/patients/<int:patient_id>/prescribe', methods=['POST'])
+@login_required(role='doctor')
+def doctor_prescribe(patient_id):
+    db = get_db()
+    if not db.execute('SELECT id FROM doctor_patient WHERE doctor_id=? AND patient_id=?',
+                      (session['user_id'], patient_id)).fetchone():
+        flash('Acces neautorizat.', 'danger')
+        return redirect(url_for('doctor_patients'))
+    name = request.form['name'].strip()
+    dosage = request.form.get('dosage', '').strip()
+    instructions = request.form.get('instructions', '').strip()
+    days = request.form.getlist('days')
+    times = request.form.get('times', '').strip()
+    start_date = request.form.get('start_date') or date.today().isoformat()
+    end_date = request.form.get('end_date', '').strip() or None
+    if not name or not days or not times:
+        flash('Completați câmpurile obligatorii.', 'danger')
+        return redirect(url_for('doctor_patient_detail', patient_id=patient_id))
+    days_str = ','.join(days)
+    cur = db.execute(
+        'INSERT INTO medications (patient_id, prescribed_by, name, dosage, instructions) VALUES (?,?,?,?,?)',
+        (patient_id, session['user_id'], name, dosage, instructions)
+    )
+    med_id = cur.lastrowid
+    cur2 = db.execute(
+        'INSERT INTO schedules (medication_id, patient_id, days_of_week, times, start_date, end_date) VALUES (?,?,?,?,?,?)',
+        (med_id, patient_id, days_str, times, start_date, end_date)
+    )
+    db.commit()
+    generate_doses(db, cur2.lastrowid, med_id, patient_id, days_str, times, start_date, end_date)
+    db.commit()
+    db.close()
+    flash(f'Medicamentul "{name}" a fost prescris cu succes.', 'success')
+    return redirect(url_for('doctor_patient_detail', patient_id=patient_id))
+
+@app.route('/doctor/patients/<int:patient_id>/medications/<int:med_id>/delete', methods=['POST'])
+@login_required(role='doctor')
+def doctor_delete_medication(patient_id, med_id):
+    db = get_db()
+    if not db.execute('SELECT id FROM doctor_patient WHERE doctor_id=? AND patient_id=?',
+                      (session['user_id'], patient_id)).fetchone():
+        flash('Acces neautorizat.', 'danger')
+        return redirect(url_for('doctor_patients'))
+    db.execute("DELETE FROM doses WHERE medication_id=? AND patient_id=?", (med_id, patient_id))
+    db.execute("DELETE FROM schedules WHERE medication_id=? AND patient_id=?", (med_id, patient_id))
+    db.execute("DELETE FROM medications WHERE id=? AND prescribed_by=?", (med_id, session['user_id']))
+    db.commit()
+    db.close()
+    flash('Medicamentul a fost eliminat din tratament.', 'success')
+    return redirect(url_for('doctor_patient_detail', patient_id=patient_id))
 
 # ──────────────────────────── ENTRY POINT ────────────────────────────
 
 if __name__ == '__main__':
     init_db()
     app.run(debug=True)
+
+# ──────────────────────────── PHARMACY ROUTES ────────────────────────────
+
+@app.route('/patient/reteta')
+@login_required(role='patient')
+def patient_reteta():
+    token = pharmacy_token(session['user_id'])
+    pharmacy_url = request.host_url.rstrip('/') + url_for('pharmacy_view', token=token)
+    db = get_db()
+    meds = db.execute('''
+        SELECT m.id, m.name, m.dosage, m.instructions, m.dispensed, m.dispensed_at,
+               u.name as doctor_name
+        FROM medications m
+        LEFT JOIN users u ON m.prescribed_by = u.id
+        WHERE m.patient_id=?
+        ORDER BY m.dispensed ASC, m.id DESC
+    ''', (session['user_id'],)).fetchall()
+    db.close()
+    return render_template('patient/reteta.html',
+                           token=token,
+                           pharmacy_url=pharmacy_url,
+                           medications=meds)
+
+@app.route('/farmacie/<token>')
+def pharmacy_view(token):
+    db = get_db()
+    # Find patient by token
+    patients = db.execute("SELECT id, name FROM users WHERE role='patient'").fetchall()
+    patient = None
+    for p in patients:
+        if pharmacy_token(p['id']) == token:
+            patient = p
+            break
+    if not patient:
+        db.close()
+        return render_template('pharmacy/not_found.html'), 404
+    meds = db.execute('''
+        SELECT m.id, m.name, m.dosage, m.instructions, m.dispensed, m.dispensed_at,
+               u.name as doctor_name, u.email as doctor_email
+        FROM medications m
+        LEFT JOIN users u ON m.prescribed_by = u.id
+        WHERE m.patient_id=?
+        ORDER BY m.dispensed ASC, m.id DESC
+    ''', (patient['id'],)).fetchall()
+    db.close()
+    return render_template('pharmacy/view.html',
+                           patient=patient, medications=meds, token=token,
+                           now=datetime.now().strftime('%d.%m.%Y %H:%M'))
+
+@app.route('/farmacie/<token>/ridica/<int:med_id>', methods=['POST'])
+def pharmacy_dispense(token, med_id):
+    db = get_db()
+    patients = db.execute("SELECT id FROM users WHERE role='patient'").fetchall()
+    patient_id = None
+    for p in patients:
+        if pharmacy_token(p['id']) == token:
+            patient_id = p['id']
+            break
+    if not patient_id:
+        db.close()
+        return redirect(url_for('pharmacy_view', token=token))
+    db.execute("UPDATE medications SET dispensed=1, dispensed_at=? WHERE id=? AND patient_id=?",
+               (datetime.now().strftime('%d.%m.%Y %H:%M'), med_id, patient_id))
+    db.commit()
+    db.close()
+    return redirect(url_for('pharmacy_view', token=token))
+
+@app.route('/farmacie/<token>/anuleaza/<int:med_id>', methods=['POST'])
+def pharmacy_undispense(token, med_id):
+    db = get_db()
+    patients = db.execute("SELECT id FROM users WHERE role='patient'").fetchall()
+    patient_id = None
+    for p in patients:
+        if pharmacy_token(p['id']) == token:
+            patient_id = p['id']
+            break
+    if not patient_id:
+        db.close()
+        return redirect(url_for('pharmacy_view', token=token))
+    db.execute("UPDATE medications SET dispensed=0, dispensed_at=NULL WHERE id=? AND patient_id=?",
+               (med_id, patient_id))
+    db.commit()
+    db.close()
+    return redirect(url_for('pharmacy_view', token=token))

@@ -34,18 +34,20 @@
                    href="{{ url_for('patient_doctors') }}">
                     <i class="bi bi-person-badge me-1"></i>Medicii mei
                 </a>
+
             {% else %}
-                <a class="nav-link-custom {% if request.endpoint == 'doctor_dashboard' %}active{% endif %}"
-                   href="{{ url_for('doctor_dashboard') }}">
-                    <i class="bi bi-bell me-1"></i>Invitații
-                </a>
-                <a class="nav-link-custom {% if request.endpoint in ['doctor_patients','doctor_patient_detail'] %}active{% endif %}"
+                <a class="nav-link-custom {% if request.endpoint in ['doctor_patients'] %}active{% endif %}"
                    href="{{ url_for('doctor_patients') }}">
                     <i class="bi bi-people me-1"></i>Pacienții mei
                 </a>
             {% endif %}
             <div class="vr opacity-25 mx-1"></div>
-            <span class="text-white-50 small"><i class="bi bi-person-circle me-1"></i>{{ session.name }}</span>
+            <span class="text-white-50 small">
+                <i class="bi bi-person-circle me-1"></i>{{ session.name }}
+                <span class="badge bg-white bg-opacity-25 ms-1 small">
+                    {% if session.role == 'doctor' %}Medic{% else %}Pacient{% endif %}
+                </span>
+            </span>
             <a class="btn btn-outline-light btn-sm" href="{{ url_for('logout') }}">Ieșire</a>
         </div>
     </div>
@@ -67,7 +69,6 @@
             {% endfor %}
         {% endif %}
     {% endwith %}
-
     {% block content %}{% endblock %}
 </div>
 
