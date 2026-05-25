@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %} – Înregistrare{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-5">
+        <div class="text-center mb-4">
+            <div class="brand-icon mx-auto mb-3">
+                <i class="bi bi-heart-pulse-fill"></i>
+            </div>
+            <h2 class="fw-bold">Cont nou MedTrack</h2>
+        </div>
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Nume complet</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0">
+                                <i class="bi bi-person text-muted"></i>
+                            </span>
+                            <input type="text" name="name" class="form-control border-start-0" required autofocus placeholder="Ion Popescu">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Email</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0">
+                                <i class="bi bi-envelope text-muted"></i>
+                            </span>
+                            <input type="email" name="email" class="form-control border-start-0" required placeholder="email@exemplu.com">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Parolă</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0">
+                                <i class="bi bi-lock text-muted"></i>
+                            </span>
+                            <input type="password" name="password" class="form-control border-start-0" required minlength="6" placeholder="Minim 6 caractere">
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-medium">Rol</label>
+                        <div class="d-flex gap-3">
+                            <div class="role-card flex-fill" onclick="selectRole('patient')">
+                                <input type="radio" name="role" value="patient" id="role_patient" required class="d-none">
+                                <label for="role_patient" class="w-100 text-center py-3 rounded cursor-pointer d-block" id="label_patient">
+                                    <i class="bi bi-person-heart d-block mb-1" style="font-size:1.5rem"></i>
+                                    <strong>Pacient</strong>
+                                </label>
+                            </div>
+                            <div class="role-card flex-fill" onclick="selectRole('doctor')">
+                                <input type="radio" name="role" value="doctor" id="role_doctor" class="d-none">
+                                <label for="role_doctor" class="w-100 text-center py-3 rounded cursor-pointer d-block" id="label_doctor">
+                                    <i class="bi bi-person-badge d-block mb-1" style="font-size:1.5rem"></i>
+                                    <strong>Medic</strong>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 py-2">
+                        <i class="bi bi-person-plus me-2"></i>Creare cont
+                    </button>
+                </form>
+                <hr>
+                <p class="text-center mb-0 text-muted small">
+                    Ai deja cont? <a href="{{ url_for('login') }}" class="fw-medium">Autentificare</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function selectRole(role) {
+    document.getElementById('role_' + role).checked = true;
+    document.getElementById('label_patient').className = 'w-100 text-center py-3 rounded cursor-pointer d-block border' + (role === 'patient' ? ' border-primary bg-primary bg-opacity-10 text-primary' : ' border-2 text-muted');
+    document.getElementById('label_doctor').className = 'w-100 text-center py-3 rounded cursor-pointer d-block border' + (role === 'doctor' ? ' border-primary bg-primary bg-opacity-10 text-primary' : ' border-2 text-muted');
+}
+// Default selection
+selectRole('patient');
+</script>
+{% endblock %}

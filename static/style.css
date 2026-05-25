@@ -1,0 +1,206 @@
+/* ── Base ── */
+body {
+    background-color: #f0f4f8;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* ── Navbar ── */
+.navbar {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    box-shadow: 0 2px 12px rgba(13,110,253,0.25);
+    padding: 0.75rem 0;
+}
+
+.nav-link-custom {
+    color: rgba(255,255,255,0.8);
+    text-decoration: none;
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.nav-link-custom:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.15);
+}
+
+.nav-link-custom.active {
+    color: #fff;
+    background: rgba(255,255,255,0.2);
+    font-weight: 600;
+}
+
+/* ── Brand Icon ── */
+.brand-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #0d6efd, #0a58ca);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    color: white;
+    box-shadow: 0 4px 15px rgba(13,110,253,0.3);
+}
+
+/* ── Cards ── */
+.card {
+    border-radius: 14px;
+}
+
+/* ── Dose Cards ── */
+.dose-card {
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.dose-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1) !important;
+}
+
+.dose-card.dose-taken {
+    border-left: 4px solid #198754 !important;
+}
+
+.dose-card.dose-missed {
+    border-left: 4px solid #dc3545 !important;
+}
+
+.status-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.status-badge.taken {
+    background: rgba(25,135,84,0.12);
+    color: #198754;
+}
+
+.status-badge.missed {
+    background: rgba(220,53,69,0.12);
+    color: #dc3545;
+}
+
+/* ── Day Pills ── */
+.day-pill {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: #e9ecef;
+    color: #6c757d;
+}
+
+.day-pill.active {
+    background: rgba(13,110,253,0.15);
+    color: #0d6efd;
+}
+
+/* ── Avatar ── */
+.avatar-circle {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0d6efd, #6f42c1);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.avatar-lg {
+    width: 60px;
+    height: 60px;
+    font-size: 1.5rem;
+}
+
+/* ── Empty States ── */
+.empty-state {
+    background: white;
+    border-radius: 14px;
+    padding: 3rem;
+}
+
+/* ── Stat Cards ── */
+.stat-card {
+    border: none;
+    transition: transform 0.15s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+}
+
+/* ── Alerts ── */
+.alert {
+    border: none;
+    border-radius: 10px;
+}
+
+/* ── Progress ── */
+.progress {
+    border-radius: 50px;
+}
+
+/* ── Buttons ── */
+.btn {
+    border-radius: 8px;
+    font-weight: 500;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #0d6efd, #0a58ca);
+    border: none;
+    box-shadow: 0 2px 8px rgba(13,110,253,0.3);
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #0a58ca, #084298);
+    box-shadow: 0 4px 12px rgba(13,110,253,0.4);
+}
+
+/* ── Forms ── */
+.form-control:focus, .form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.15);
+}
+
+.input-group-text {
+    border-right: none;
+}
+
+/* ── Modal ── */
+.modal-content {
+    border-radius: 16px;
+    border: none;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+}
+
+/* ── Role cards on register ── */
+.role-card label {
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid #dee2e6 !important;
+    color: #6c757d;
+}
+
+.role-card label:hover {
+    border-color: #0d6efd !important;
+    color: #0d6efd;
+}
+
+/* ── Table ── */
+.table > :not(caption) > * > * {
+    padding: 0.85rem 1rem;
+}

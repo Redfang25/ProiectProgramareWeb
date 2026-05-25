@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %} – Dashboard Medic{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-0"><i class="bi bi-bell text-primary me-2"></i>Invitații în așteptare</h2>
+        <p class="text-muted mb-0">Pacienți care doresc să vă conecteze la tratamentul lor</p>
+    </div>
+    <a href="{{ url_for('doctor_patients') }}" class="btn btn-outline-primary">
+        <i class="bi bi-people me-1"></i>Pacienții mei
+    </a>
+</div>
+
+{% if pending %}
+<div class="row g-3">
+    {% for inv in pending %}
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm border-start border-warning border-3">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="avatar-circle me-3">
+                        {{ inv.name[0].upper() }}
+                    </div>
+                    <div>
+                        <h6 class="mb-0">{{ inv.name }}</h6>
+                        <small class="text-muted">{{ inv.email }}</small>
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <form method="POST" action="{{ url_for('accept_invitation', dp_id=inv.id) }}" class="flex-fill">
+                        <button class="btn btn-success btn-sm w-100">
+                            <i class="bi bi-check-lg me-1"></i>Acceptă
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ url_for('reject_invitation', dp_id=inv.id) }}" class="flex-fill"
+                          onsubmit="return confirm('Respingi invitația de la {{ inv.name }}?')">
+                        <button class="btn btn-outline-danger btn-sm w-100">
+                            <i class="bi bi-x-lg me-1"></i>Respinge
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state text-center py-5">
+    <i class="bi bi-check-circle text-success" style="font-size: 3.5rem;"></i>
+    <h4 class="mt-3">Nicio invitație în așteptare</h4>
+    <p class="text-muted">Pacienții vă pot trimite invitații folosind adresa voastră de email.</p>
+    <a href="{{ url_for('doctor_patients') }}" class="btn btn-primary mt-2">
+        <i class="bi bi-people me-1"></i>Vezi pacienții activi
+    </a>
+</div>
+{% endif %}
+{% endblock %}

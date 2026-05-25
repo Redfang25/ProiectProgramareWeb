@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% block title %} – Istoric doze{% endblock %}
+{% block content %}
+
+<h2 class="fw-bold mb-4"><i class="bi bi-clock-history text-primary me-2"></i>Istoric doze</h2>
+
+{% if stats and stats.total > 0 %}
+<div class="row g-3 mb-4">
+    <div class="col-4">
+        <div class="stat-card text-center py-3 rounded-3 bg-light">
+            <div class="fs-3 fw-bold">{{ stats.total }}</div>
+            <small class="text-muted">Total confirmate</small>
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="stat-card text-center py-3 rounded-3" style="background:rgba(25,135,84,0.1)">
+            <div class="fs-3 fw-bold text-success">{{ stats.taken or 0 }}</div>
+            <small class="text-muted">Luate</small>
+        </div>
+    </div>
+    <div class="col-4">
+        <div class="stat-card text-center py-3 rounded-3" style="background:rgba(220,53,69,0.1)">
+            <div class="fs-3 fw-bold text-danger">{{ stats.missed or 0 }}</div>
+            <small class="text-muted">Omise</small>
+        </div>
+    </div>
+</div>
+{% if stats.total > 0 %}
+<div class="mb-4">
+    <div class="d-flex justify-content-between small text-muted mb-1">
+        <span>Aderență tratament</span>
+        <span>{{ ((stats.taken or 0) / stats.total * 100) | round(1) }}%</span>
+    </div>
+    <div class="progress" style="height: 8px;">
+        <div class="progress-bar bg-success" role="progressbar"
+             style="width: {{ ((stats.taken or 0) / stats.total * 100) | round(1) }}%"></div>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
+{% if doses %}
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Dată</th>
+                    <th>Oră</th>
+                    <th>Medicament</th>
+                    <th>Dozaj</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for dose in doses %}
+                <tr>
+                    <td class="text-muted small">{{ dose.dose_date }}</td>
+                    <td><span class="badge bg-light text-dark border">{{ dose.dose_time }}</span></td>
+                    <td><strong>{{ dose.med_name }}</strong></td>
+                    <td class="text-muted small">{{ dose.dosage or '–' }}</td>
+                    <td>
+                        {% if dose.status == 'taken' %}
+                            <span class="badge bg-success">
+                                <i class="bi bi-check-circle me-1"></i>Luată
+                            </span>
+                        {% else %}
+                            <span class="badge bg-danger">
+                                <i class="bi bi-x-circle me-1"></i>Omisă
+                            </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="empty-state text-center py-5">
+    <i class="bi bi-clock-history text-muted" style="font-size: 3.5rem;"></i>
+    <h4 class="mt-3">Niciun istoric disponibil</h4>
+    <p class="text-muted">Confirmă sau marchează dozele din pagina <strong>Today</strong> pentru a vedea istoricul.</p>
+</div>
+{% endif %}
+{% endblock %}

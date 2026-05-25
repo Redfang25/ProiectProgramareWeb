@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedTrack{% block title %}{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
+<body>
+
+{% if session.user_id %}
+<nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="/">
+            <i class="bi bi-heart-pulse-fill me-2"></i>MedTrack
+        </a>
+        <div class="d-flex align-items-center gap-3 ms-auto">
+            {% if session.role == 'patient' %}
+                <a class="nav-link-custom {% if request.endpoint == 'patient_today' %}active{% endif %}"
+                   href="{{ url_for('patient_today') }}">
+                    <i class="bi bi-calendar-check me-1"></i>Today
+                </a>
+                <a class="nav-link-custom {% if request.endpoint == 'patient_medications' %}active{% endif %}"
+                   href="{{ url_for('patient_medications') }}">
+                    <i class="bi bi-capsule me-1"></i>Medicamente
+                </a>
+                <a class="nav-link-custom {% if request.endpoint == 'patient_history' %}active{% endif %}"
+                   href="{{ url_for('patient_history') }}">
+                    <i class="bi bi-clock-history me-1"></i>Istoric
+                </a>
+                <a class="nav-link-custom {% if request.endpoint == 'patient_doctors' %}active{% endif %}"
+                   href="{{ url_for('patient_doctors') }}">
+                    <i class="bi bi-person-badge me-1"></i>Medicii mei
+                </a>
+            {% else %}
+                <a class="nav-link-custom {% if request.endpoint == 'doctor_dashboard' %}active{% endif %}"
+                   href="{{ url_for('doctor_dashboard') }}">
+                    <i class="bi bi-bell me-1"></i>Invitații
+                </a>
+                <a class="nav-link-custom {% if request.endpoint in ['doctor_patients','doctor_patient_detail'] %}active{% endif %}"
+                   href="{{ url_for('doctor_patients') }}">
+                    <i class="bi bi-people me-1"></i>Pacienții mei
+                </a>
+            {% endif %}
+            <div class="vr opacity-25 mx-1"></div>
+            <span class="text-white-50 small"><i class="bi bi-person-circle me-1"></i>{{ session.name }}</span>
+            <a class="btn btn-outline-light btn-sm" href="{{ url_for('logout') }}">Ieșire</a>
+        </div>
+    </div>
+</nav>
+{% endif %}
+
+<div class="container py-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+                    {% if category == 'success' %}<i class="bi bi-check-circle me-2"></i>
+                    {% elif category == 'danger' %}<i class="bi bi-exclamation-circle me-2"></i>
+                    {% elif category == 'warning' %}<i class="bi bi-exclamation-triangle me-2"></i>
+                    {% else %}<i class="bi bi-info-circle me-2"></i>{% endif %}
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
