@@ -8,20 +8,13 @@ CERINȚE
 
 INSTALARE ȘI PORNIRE
 ---------------------
-1. Dezarhivează folderul medtrack/
-
-2. (Opțional) Creează un virtual environment:
-   python -m venv venv
-   venv\Scripts\activate        # Windows
-   source venv/bin/activate     # Mac/Linux
-
-3. Instalează dependențele:
+1. Instalează dependențele:
    pip install -r requirements.txt
 
-4. Pornește aplicația:
+2. Pornește aplicația:
    python app.py
 
-5. Deschide browserul la:
+3. Deschide browserul la:
    http://127.0.0.1:5000
 
 UTILIZARE
@@ -63,5 +56,3 @@ schedules      → id, medication_id, patient_id, days_of_week, times, start_dat
 doses          → id, schedule_id, patient_id, medication_id, dose_date, dose_time, status, confirmed_at
 doctor_patient → id, doctor_id, patient_id, status
 
-NOTĂ: Parola este stocată hashed (werkzeug). Baza de date se creează
-automat la prima pornire a aplicației.
